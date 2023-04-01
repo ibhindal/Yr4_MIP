@@ -20,27 +20,11 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras import mixed_precision
 import tensorflow as tf
+import subprocess
 
 # Enable mixed precision training
 policy = mixed_precision.Policy('mixed_float16')
 mixed_precision.set_global_policy(policy)
-
-# Download and extract the dataset
-def download_and_extract_data(url, data_path):
-    response = requests.get(url, stream=True)
-    zip_file_path = os.path.join(data_path, "archive.zip")
-    
-    with open(zip_file_path, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
-
-    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-        zip_ref.extractall(data_path)
-
-    tar_file_path = os.path.join(data_path, "BraTS2021_Training_Data.tar")
-    with tarfile.open(tar_file_path, 'r') as tar_ref:
-        tar_ref.extractall(data_path)
 
 def load_data(data_path, modalities, fraction=1.0):
     data_list = []
@@ -86,11 +70,21 @@ def generate_modality_combinations(modalities):
             combinations_list.append(list(subset))
     return combinations_list
 
-dataset_url = "https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1/download?datasetVersionNumber=1"
 current_directory = os.getcwd()
 data_path = os.path.join(current_directory, "data")
 os.makedirs(data_path, exist_ok=True)
-download_and_extract_data(dataset_url, data_path)
+
+# Download the dataset using the Kaggle command-line tool
+subprocess.run(["kaggle", "datasets", "download", "-d", "dschettler8845/brats-2021-task1", "-p", data_path])
+
+# Unzip the dataset
+zip_file_path = os.path.join(data_path, "archive.zip")
+with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+    zip_ref.extractall(data_path)
+
+zip_file_path = os.path.join(data_path, "brats-2021-task1.zip")
+with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+    zip_ref.extractall(data_path)
 
 # Define the parameters
 all_modalities = ['T1', 'T1ce', 'T2', 'FLAIR']
@@ -102,8 +96,6 @@ strategy = tf.distribute.MirroredStrategy()
 batch_size_per_gpu = 16
 num_gpus = 2
 total_batch_size = batch_size_per_gpu * num_gpus
-
-
 for modalities in modality_combinations:
     print(f"Training with modalities: {modalities}")
 
